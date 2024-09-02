@@ -58,3 +58,9 @@ This repository contains three interconnected scripts designed to manage fixed a
 
 3. **Testing:**
    - Thoroughly test the scripts in a sandbox environment to ensure they perform as expected without causing disruptions to inventory adjustments or financial reporting.
+
+## Contributions
+
+Please feel free to submit issues or pull requests if you encounter bugs or have improvements for these scripts. Contributions are welcome!
+
+## Please don't use my work without giving credit. :(
