@@ -1,4 +1,4 @@
-# Asset-Management
+# NetSuite Asset-Management
 A script used to automate the creation and movement of serialized and lot numbered assets as they move between locations.
 
 The script takes a number of steps to determine what record is being processed, the items involved and any existing assets at the transfer location or delivery location.
