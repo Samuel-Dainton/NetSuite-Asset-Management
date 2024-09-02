@@ -4,13 +4,16 @@ This repository contains three interconnected scripts designed to manage fixed a
 
 ## Overview
 
-1. **Asset Management User Event Script (`AssetManagement_UE.js`)**
+1. **Asset Management User Event Script [Asset Management User Event Script (`AssetManagement_UE.js`)](https://github.com/YourUsername/YourRepoName/blob/main/path/to/AssetManagement_UE.js)
+**
    - Handles the creation and updating of fixed asset records based on item receipts. It triggers upon the creation or modification of item receipts and ensures that new assets are created for applicable items, with proper accounting for landed costs, quantities, serial/lot numbers and locations.
 
-2. **Asset Disposal Client Script (`AssetDisposal_CS.js`)**
+2. **Asset Disposal Client Script [Asset Management User Event Script (`AssetDisposal_CS.js`)](https://github.com/Samuel-Dainton/NetSuite-Asset-Management/blob/main/AssetDisposal_CS.js)
+**
    - Provides client-side validation to ensure that only valid fixed asset items are processed during inventory adjustments. This script validates line items, checks the asset account mappings, and prevents the saving of invalid records.
 
-3. **Asset Disposal User Event Script (`AssetDisposal_UE.js`)**
+3. **Asset Disposal User Event Script (`AssetDisposal_UE.js`)[Asset Management User Event Script (`AssetManagement_UE.js`)](https://github.com/YourUsername/YourRepoName/blob/main/path/to/AssetManagement_UE.js)
+**
    - Manages the creation of monthly asset deletion records, reversal journals and the deletion of paired records from inventory adjustments. It ensures that related financial records are accurately updated or removed in line with the disposal of fixed assets.
 
 ## Script Descriptions
