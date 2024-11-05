@@ -18,7 +18,7 @@ This repository contains three interconnected scripts designed to manage fixed a
 
 ## Script Descriptions
 
-### 1. Asset Management User Event Script (`AssetManagement_UE.js`)
+### 1. Asset Management Scheduled Script (`AssetManagement_SS.js`)
 
 - **Purpose:**  
   This script automates the creation and updating of fixed asset records in response to item receipts from purchase orders or transfer orders. It verifies the subsidiary and source transaction type before creating or updating asset records.
