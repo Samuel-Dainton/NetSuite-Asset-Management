@@ -1,138 +1,64 @@
 /**
  * @NApiVersion 2.x
- * @NScriptType UserEventScript
- * @NModuleScope SameAccount
+ * @NScriptType ScheduledScript
  */
+define(['N/record', 'N/runtime', 'N/log', 'N/search', 'N/email', 'N/task'], function (record, runtime, log, search, email, task) {
 
-define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, log, task) {
-
-    function afterSubmit(context) {
-
-        if (context.type === context.UserEventType.DELETE) {
-            return;
-        }
-
-        // Load the item receipt
-        var newRecord = context.newRecord;
-        var oldRecord = context.oldRecord;
-        var itemReceipt = record.load({
-            type: record.Type.ITEM_RECEIPT,
-            id: newRecord.id,
-            isDynamic: false
-        });
-
-        var isCreated = (context.type === context.UserEventType.CREATE);
-        var isUpdated = (context.type === context.UserEventType.EDIT);
-        var createdFrom = itemReceipt.getValue({ fieldId: 'createdfrom' });
-        var subsidiary = itemReceipt.getValue({ fieldId: 'subsidiary' });
-        log.debug('Script started', 'Script started for ' + itemReceipt + ' created from ' + createdFrom + ' by Subsidiary ' + subsidiary);
-
-        // Check for valid subsidiary
-        // 7 = Siera Leone, 8 = Liberia, 9 = Nigeria, 14 = DRC, 21 = Test Nigeria
-        var validSubsidiaries = ["7", "8", "9", "14", "21"];
-        if (validSubsidiaries.indexOf(subsidiary) === -1) {
-            log.debug('Invalid Subsidiary', 'This script only runs for subsidiaries: 7, 8, 9, 14 or 21. The subsidiary in this item receipt is ' + subsidiary + '.');
-            return;
-        }
-
-        // Check the source transaction type (PurchOrd or TrnfrOrd)
-        var createdFrom = itemReceipt.getValue({ fieldId: 'createdfrom' });
-        var sourceType = search.lookupFields({
-            type: search.Type.TRANSACTION,
-            id: createdFrom,
-            columns: ['type']
-        }).type[0].value;
-
-        if (isCreated) {
-            if (sourceType === 'PurchOrd') {
-                handlePurchaseOrder(itemReceipt);
-            } else if (sourceType === 'TrnfrOrd') {
-                handleTransferOrder(itemReceipt);
-            } else {
-                log.debug('Purchase type not identified. Source type is: ' + sourceType);
-            }
-        }
-
-        // If updated, check if specific fields have been modified
-        if (isUpdated) {
-            var fieldsToCheck = [
-                'landedcostamount6',
-                'landedcostamount7',
-                'landedcostamount8',
-                'landedcostamount9',
-                'landedcostamount10'
-            ];
-
-            var fieldsToIgnore = [
-                'recmachcustrecord_2663_transactionorigtypes', 'itemlabels',
-                'recmachcustrecord_mobile_target_transactionloaded', 'recmachcustrecord_far_expinc_transactiondotted',
-                'iteminventorydetailtypes', 'recmachcustrecord_deprhistjournaltypes', 'recmachcustrecord_far_expinc_transactionloaded',
-                'custpage_scm_lc_elcenabled', 'submitted', 'messagesdotted', 'recmachcustrecord2parents', 'nlapiCC',
-                'expensevalid', 'callsloaded', 'recmachcustrecord2origtypes', 'nlapiSR', 'tasksloaded',
-                'clickedback', 'nlapiPS', 'recmachcustrecord_2663_transactionvalid', 'expenselabels', 'prevdate',
-                'recmachcustrecord_4599_tranchild_joindotted', 'recmachcustrecord1fieldsets', 'contactsdotted',
-                'inpt_custbody_project_type', 'recmachcustrecord2labels', 'tasksdotted', 'recmachcustrecord_summary_histjournaldotted',
-                'itemlandedcosttypes', 'recmachcustrecord_deprhistjournalparents', 'eventsloaded', 'callsdotted', 'inpt_postingperiod',
-            ];
-
-            var fieldsModified = fieldsToCheck.some(function (fieldId) {
-                var newValue = newRecord.getValue(fieldId);
-                var oldValue = oldRecord.getValue(fieldId);
-                // log.debug('Field Value Check', 'Field: ' + fieldId + ', Old Value: ' + oldValue + ', New Value: ' + newValue);
-                return newValue !== oldValue;
-            });
-
-            if (fieldsModified) {
-                handleLandedCost(newRecord.id);
-            } 
-            // else {
-            //     var allFields = newRecord.getFields();
-            //     var changes = [];
-
-            //     allFields.forEach(function (fieldId) {
-            //         if (fieldsToCheck.indexOf(fieldId) === -1 && fieldsToIgnore.indexOf(fieldId) === -1) { // Using indexOf instead of includes
-            //             var newValue = newRecord.getValue(fieldId);
-            //             var oldValue = oldRecord.getValue(fieldId);
-            //             if (newValue !== oldValue) {
-            //                 changes.push('Field: ' + fieldId + ', Old Value: ' + oldValue + ', New Value: ' + newValue);
-            //             }
-            //         }
-            //     });
-
-            //     if (changes.length > 0) {
-            //         log.debug('Updated with other changes', 'The record' + newRecord.id + ' was updated and changes were found in other fields: ' + changes.join(', '));
-            //     } else {
-            //         log.debug('Updated but no Change', 'The record was updated but no valid fields related to any asset records were changed.');
-            //     }
-            // }
-        }
-        ///////////////////////////////////////////////////////
-        /// Trigger the FAM Migrate to Precompute SS script ///
-        ///////////////////////////////////////////////////////
+    function execute(context) {
         try {
-            var scriptTask = task.create({
-                taskType: task.TaskType.SCHEDULED_SCRIPT
+            // Retrieve parameters passed from the User Event script
+            var itemReceiptId = runtime.getCurrentScript().getParameter({ name: 'custscript_item_receipt_id' });
+            var functionToRun = runtime.getCurrentScript().getParameter({ name: 'custscript_function_to_run' });
+
+            if (!itemReceiptId || !functionToRun) {
+                log.error('Missing Parameters', 'Item Receipt ID: ' + itemReceiptId + ' or Function to Run: ' + functionToRun + ' is not provided.');
+                return;
+            }
+
+            // Load the Item Receipt record once
+            var itemReceipt = record.load({
+                type: record.Type.ITEM_RECEIPT,
+                id: itemReceiptId,
+                isDynamic: false
             });
 
-            scriptTask.scriptId = 'customscript_fam_migratetoprecompute_ss';
-            scriptTask.deploymentId = 'customdeploy_fam_migratetoprecompute_ss';
+            log.debug('Scheduled Script Started', 'Item Receipt ID: ' + itemReceiptId + ', Function to Run: ' + functionToRun);
 
-            var taskId = scriptTask.submit();
-            log.debug('Scheduled Script Task Submitted', 'Task ID: ' + taskId);
-        } catch (e) {
-            log.error('Error scheduling script', e.message);
+            // Call the specified function based on functionToRun parameter
+            if (functionToRun === 'handlePurchaseOrder') {
+                handlePurchaseOrder(itemReceipt);
+            } else if (functionToRun === 'handleTransferOrder') {
+                handleTransferOrder(itemReceipt);
+            } else if (functionToRun === 'handleLandedCost') {
+                handleLandedCost(itemReceipt, itemReceiptId);
+            } else {
+                log.error('Invalid Function', 'The specified function to run is not recognized: ' + functionToRun);
+            }
+
+            ///////////////////////////////////////////////////////
+            /// Trigger the FAM Migrate to Precompute SS script ///
+            ///////////////////////////////////////////////////////
+            try {
+                var scriptTask = task.create({
+                    taskType: task.TaskType.SCHEDULED_SCRIPT
+                });
+
+                scriptTask.scriptId = 'customscript_fam_migratetoprecompute_ss';
+                scriptTask.deploymentId = 'customdeploy_fam_migratetoprecompute_ss';
+
+                var taskId = scriptTask.submit();
+                log.debug('Scheduled Script Task Submitted', 'Task ID: ' + taskId);
+            } catch (e) {
+                log.error('Error scheduling script', e.message);
+            }
+
+        } catch (error) {
+            log.error('Scheduled Script Error', error);
         }
     }
 
-    function handleLandedCost(itemReceiptId) {
-        log.debug('Handling Landed Cost', 'Item Receipt ID: ' + itemReceiptId);
-
-        // Load the item receipt
-        var itemReceipt = record.load({
-            type: record.Type.ITEM_RECEIPT,
-            id: itemReceiptId,
-            isDynamic: false
-        });
+    function handleLandedCost(itemReceipt, itemReceiptId) {
+        log.debug('Handling Landed Cost', 'Item Receipt ID: ' + itemReceipt);
 
         // Initialize total variables
         var totalOfItems = 0;
@@ -159,12 +85,30 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
 
         totalLandedCost = totalLandedCost * exchangeRate
 
+        log.debug('Initial Values', {
+            itemReceiptId: itemReceiptId,
+            exchangeRate: exchangeRate,
+            totalLandedCost: totalLandedCost
+        });
+
         // Calculate total value of each line item
         for (var i = 0; i < itemCount; i++) {
             var quantity = itemReceipt.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
             var rate = itemReceipt.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i });
+            log.debug('Item Calculation', {
+                line: i,
+                quantity: quantity,
+                rate: rate,
+                exchangeRate: exchangeRate
+            });
             var amount = (quantity * rate) * exchangeRate;
-
+            log.debug('Item Calculation', {
+                line: i,
+                quantity: quantity,
+                rate: rate,
+                amount: amount,
+                exchangeRate: exchangeRate
+            });
             totalOfItems += amount;
         }
 
@@ -178,6 +122,14 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
             var individualItemsLandedPortion = proportion * totalLandedCost;
             var newAmount = (amount + individualItemsLandedPortion);
             var serialNumbers = [];
+
+            log.debug('Distributing Landed Cost', {
+                line: i,
+                amount: amount,
+                proportion: proportion,
+                individualItemsLandedPortion: individualItemsLandedPortion,
+                newAmount: newAmount
+            });
 
             // Handle inventory detail for each line item
             var inventoryDetailSubrecord = itemReceipt.getSublistSubrecord({
@@ -227,7 +179,7 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
                     filters: filters,
                     columns: [
                         'internalid',
-                        'custrecord_asset_quantity',
+                        'custrecord_ncfar_quantity',
                         'custrecord_assetcost',
                         'custrecord_assetcurrentcost',
                         'custrecord_assetbookvalue'
@@ -247,6 +199,14 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
                         isDynamic: true
                     });
 
+                    log.debug('Updating Asset Record', {
+                        assetId: assetId,
+                        assetQuantity: assetQuantity,
+                        newAmount: newAmount,
+                        quantity: quantity,
+                        newCost: newCost
+                    });
+
                     assetRecord.setValue({ fieldId: 'custrecord_assetcost', value: newCost });
                     assetRecord.setValue({ fieldId: 'custrecord_assetcurrentcost', value: newCost });
                     assetRecord.setValue({ fieldId: 'custrecord_assetbookvalue', value: newCost });
@@ -254,6 +214,7 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
                 });
             }
         }
+        log.debug('Handling Landed Cost', 'Completed');
     }
 
     function handlePurchaseOrder(itemReceipt) {
@@ -306,7 +267,7 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
 
             var displayName = itemReceipt.getSublistValue({
                 sublistId: 'item',
-                fieldId: 'displayname', 
+                fieldId: 'displayname',
                 line: i
             });
 
@@ -492,6 +453,10 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
             throw new Error('Exchange rate not found for the given date or the previous day. From currency ' + fromCurrencyId + ' to currency ' + toCurrencyId + ' on ' + formattedDate);
         }
 
+        log.debug('Exchange Rate Retrieval', {
+            formattedDate: formattedDate,
+            exchangeRate: exchangeRate
+        });
         return exchangeRate;
     }
 
@@ -513,6 +478,8 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
         var itemCount = itemReceipt.getLineCount({ sublistId: 'item' });
         // Get or create Monthly Changes Parent record for current month
         var changesRecordId = findOrCreateMonthlyChangesRecord(new Date());
+        var unmatchedSerialNumbers = [];
+        var insufficientQuantityItems = [];
 
         // Define the asset mapping
         var assetMapping = {
@@ -536,7 +503,7 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
 
             var displayName = itemReceipt.getSublistValue({
                 sublistId: 'item',
-                fieldId: 'displayname', 
+                fieldId: 'displayname',
                 line: i
             });
 
@@ -601,8 +568,11 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
                 });
 
                 if (matchingAssets.length === 0) {
-                    log.debug('No asset records found for serial number: ' + serialNumber);
-                    break;
+                    unmatchedSerialNumbers.push({
+                        itemName: displayName,
+                        serialNumber: serialNumber
+                    });
+                    continue;
                 }
 
                 var totalAvailableQuantity = 0;
@@ -625,8 +595,12 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
 
                 // Ensure total quantity available can fulfill transfer
                 if (totalAvailableQuantity < transferQuantity) {
+                    insufficientQuantityItems.push({
+                        itemName: displayName,
+                        serialNumber: serialNumber
+                    });
                     log.error('Insufficient Quantity', 'Not enough assets to fulfill the transfer quantity for serial number: ' + serialNumber);
-                    break;
+                    continue;
                 }
 
                 // Process transfer by looping through transferLocation assets (source)
@@ -654,7 +628,7 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
                         var locationAssetDeprStartDate = locationAsset.deprStartDate;
                         var locationAssetDeprToDate = locationAsset.deprToDate; // Assuming deprToDate is retrieved as part of the asset record
 
-                        // Ensure `custrecord_assetdeprtodate` is not greater than 0 before merging
+                        // Ensure 'custrecord_assetdeprtodate' is not greater than 0 before merging
                         if (
                             transferLocationAssetDeprStartDate &&
                             locationAssetDeprStartDate &&
@@ -721,6 +695,10 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
                     }
                 });
             }
+
+            if (unmatchedSerialNumbers.length > 0 || insufficientQuantityItems.length > 0) {
+                sendEmail(unmatchedSerialNumbers, insufficientQuantityItems, itemReceipt);
+            }
         }
     }
 
@@ -741,7 +719,7 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
             id: asset.id,
             isDynamic: true
         });
-        assetDetails.oldLocation = assetRecord.getValue({fieldId: 'custrecord_assetlocation'})
+        assetDetails.oldLocation = assetRecord.getValue({ fieldId: 'custrecord_assetlocation' })
         assetRecord.setValue({ fieldId: 'custrecord_assetsourcetrn', value: itemReceipt.id });
         assetRecord.setValue({ fieldId: 'custrecord_assetlocation', value: newLocation });
         assetRecord.setValue({ fieldId: 'custrecord_assetdepractive', value: 1 });
@@ -979,7 +957,63 @@ define(['N/record', 'N/search', 'N/log', 'N/task'], function (record, search, lo
         return subRecordId;
     }
 
+    function sendEmail(unmatchedSerialNumbers, insufficientQuantityItems, itemReceipt) {
+        var recipients = getEmailRecipients();
+        var tranID = itemReceipt.getValue({ fieldId: 'tranid' });
+        var emailBody = "";
+
+        if (unmatchedSerialNumbers.length > 0) {
+            emailBody += 'Dear financial controller,\n\n' +
+                'The Asset Management script was recently run on Item Receipt ID: ' + tranID + ' and was unable to locate fixed asset records for the following items and serial numbers:\n';
+
+            unmatchedSerialNumbers.forEach(function (entry) {
+                emailBody += entry.itemName + ', ' + entry.serialNumber + '\n';
+            });
+
+            emailBody += '\nPlease investigate the results and make sure fixed asset records are created or updated with the necessary tracking information.\n\n';
+        }
+
+        if (insufficientQuantityItems.length > 0) {
+            emailBody += 'Dear financial controller,\n\n' +
+                'The Asset Management script was recently run on Item Receipt ID: ' + tranID + ' and was unable to locate enough quantity of fixed assets to complete the transfer of assets. Please investigate the results for the following items and serial numbers:\n';
+
+            insufficientQuantityItems.forEach(function (entry) {
+                emailBody += entry.itemName + ', ' + entry.serialNumber + '\n';
+            });
+
+            emailBody += '\nPlease ensure sufficient asset records and quantities exist in the correct locations.\n\n';
+        }
+
+        // Only send email if there is content to send
+        if (emailBody) {
+            email.send({
+                author: -5, // -5 sets the author to be the system
+                recipients: recipients,
+                subject: 'Asset Management Script Notification',
+                body: emailBody
+            });
+        }
+    }
+
+    function getEmailRecipients() {
+        var recipients = [];
+        var roleSearch = search.create({
+            type: search.Type.EMPLOYEE,
+            filters: [
+                ["role", "anyof", ["1042", "1044"]]
+            ],
+            columns: ["email"]
+        });
+
+        roleSearch.run().each(function (result) {
+            recipients.push(result.getValue("email"));
+            return true;
+        });
+
+        return recipients;
+    }
+
     return {
-        afterSubmit: afterSubmit
+        execute: execute
     };
 });
