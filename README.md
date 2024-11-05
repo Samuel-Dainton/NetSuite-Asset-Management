@@ -4,7 +4,7 @@ This repository contains three interconnected scripts designed to manage fixed a
 
 ## Overview
 
-1. **Asset Management** User Event Script [Asset Management User Event Script (`AssetManagement_UE.js`)](https://github.com/Samuel-Dainton/NetSuite-Asset-Management/blob/main/AssetManagement_UE.js)
+1. **Asset Management Scheduled Script** [Asset Management User Event Script (`AssetManagement_SS.js`)](https://github.com/Samuel-Dainton/NetSuite-Asset-Management/blob/main/AssetManagement_UE.js)
 
    - Handles the creation and updating of fixed asset records based on item receipts. It triggers upon the creation or modification of item receipts and ensures that new assets are created for applicable items, with proper accounting for landed costs, quantities, serial/lot numbers and locations.
 
