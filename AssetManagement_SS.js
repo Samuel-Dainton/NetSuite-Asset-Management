@@ -695,10 +695,9 @@ define(['N/record', 'N/runtime', 'N/log', 'N/search', 'N/email', 'N/task'], func
                     }
                 });
             }
-
-            if (unmatchedSerialNumbers.length > 0 || insufficientQuantityItems.length > 0) {
-                sendEmail(unmatchedSerialNumbers, insufficientQuantityItems, itemReceipt);
-            }
+        }
+        if (unmatchedSerialNumbers.length > 0 || insufficientQuantityItems.length > 0) {
+            sendEmail(unmatchedSerialNumbers, insufficientQuantityItems, itemReceipt);
         }
     }
 
@@ -726,9 +725,14 @@ define(['N/record', 'N/runtime', 'N/log', 'N/search', 'N/email', 'N/task'], func
 
         var deprStartDate = assetRecord.getValue({ fieldId: 'custrecord_assetdeprstartdate' });
         if (!deprStartDate) {
-            var today = new Date();
-            assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: today });
+            var irDate = itemReceipt.getValue({fieldId: 'trandate'})
+            assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: irDate });
+            if(!irDate) {
+                var today = new Date();
+                assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: today });
+            }
         }
+
         // 2 = Depreciating
         assetRecord.setValue({ fieldId: 'custrecord_assetstatus', value: 2 });
         assetRecord.save();
@@ -889,8 +893,13 @@ define(['N/record', 'N/runtime', 'N/log', 'N/search', 'N/email', 'N/task'], func
         if (depreciationStartDate) {
             assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: transferLocationAsset.custrecord_assetdeprstartdate });
         } else {
-            var today = new Date();
-            assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: today });
+                var irDate = itemReceipt.getValue({fieldId: 'trandate'})
+                assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: irDate });
+                if(!irDate) {
+                    var today = new Date();
+                    assetRecord.setValue({ fieldId: 'custrecord_assetdeprstartdate', value: today });
+
+                }
         }
 
         var assetRecordId = assetRecord.save();
